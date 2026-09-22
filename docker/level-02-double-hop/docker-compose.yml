@@ -1,0 +1,91 @@
+networks:
+  attack_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24
+
+  # pivot-01 and pivot-02 both sit on this network - this is deliberate. It's what
+  # lets pivot-02 reach pivot-01's listener (172.16.10.20:11601) to register as a
+  # second agent, exactly like a real internal segment where a jump host and a
+  # second, more restricted host share a VLAN.
+  internal_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.16.10.0/24
+
+  # Only pivot-02 and internal-server-2 are here. Nothing on attack_net or
+  # internal_net (including pivot-01) has a route into this network - that's the
+  # whole point of the second hop.
+  restricted_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 192.168.50.0/24
+
+services:
+  kali:
+    build: ./kali
+    image: ligolo-lab/kali:level02
+    container_name: ligolo-lab02-kali
+    hostname: kali
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    networks:
+      attack_net:
+        ipv4_address: 10.10.10.10
+    stdin_open: true
+    tty: true
+
+  pivot-01:
+    build: ./pivot-01
+    image: ligolo-lab/pivot01:level02
+    container_name: ligolo-lab02-pivot01
+    hostname: pivot01
+    networks:
+      attack_net:
+        ipv4_address: 10.10.10.20
+      internal_net:
+        ipv4_address: 172.16.10.20
+    stdin_open: true
+    tty: true
+
+  internal-server-1:
+    build: ./internal-server-1
+    image: ligolo-lab/internal1:level02
+    container_name: ligolo-lab02-internal1
+    hostname: internal-server-1
+    networks:
+      internal_net:
+        ipv4_address: 172.16.10.50
+    stdin_open: true
+    tty: true
+
+  pivot-02:
+    build: ./pivot-02
+    image: ligolo-lab/pivot02:level02
+    container_name: ligolo-lab02-pivot02
+    hostname: pivot02
+    networks:
+      internal_net:
+        ipv4_address: 172.16.10.30
+      restricted_net:
+        ipv4_address: 192.168.50.30
+    stdin_open: true
+    tty: true
+
+  internal-server-2:
+    build: ./internal-server-2
+    image: ligolo-lab/internal2:level02
+    container_name: ligolo-lab02-internal2
+    hostname: internal-server-2
+    networks:
+      restricted_net:
+        ipv4_address: 192.168.50.10
+    stdin_open: true
+    tty: true

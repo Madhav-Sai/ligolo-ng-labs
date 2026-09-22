@@ -1,0 +1,61 @@
+networks:
+  # "attack_net" is the only network Kali can see. This is the network you'd be on
+  # after landing an initial foothold facing the DMZ.
+  attack_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24
+
+  # "internal_net" is deliberately marked internal: true — Docker will not give this
+  # network a route to the outside world at all. The ONLY member with a leg in both
+  # networks is pivot-01. That is the entire point of this lab: internal-server-1 is
+  # unreachable from kali until a tunnel exists.
+  internal_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.16.10.0/24
+
+services:
+  kali:
+    build: ./kali
+    image: ligolo-lab/kali:level01
+    container_name: ligolo-lab01-kali
+    hostname: kali
+    # NET_ADMIN + /dev/net/tun are what let the ligolo-ng proxy create a TUN interface
+    # inside the container. Nothing else in this lab needs elevated privileges.
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    networks:
+      attack_net:
+        ipv4_address: 10.10.10.10
+    stdin_open: true
+    tty: true
+
+  pivot-01:
+    build: ./pivot-01
+    image: ligolo-lab/pivot01:level01
+    container_name: ligolo-lab01-pivot01
+    hostname: pivot01
+    networks:
+      attack_net:
+        ipv4_address: 10.10.10.20
+      internal_net:
+        ipv4_address: 172.16.10.20
+    stdin_open: true
+    tty: true
+
+  internal-server-1:
+    build: ./internal-server-1
+    image: ligolo-lab/internal1:level01
+    container_name: ligolo-lab01-internal1
+    hostname: internal-server-1
+    networks:
+      internal_net:
+        ipv4_address: 172.16.10.50
+    stdin_open: true
+    tty: true

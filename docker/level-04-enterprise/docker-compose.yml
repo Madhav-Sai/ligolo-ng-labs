@@ -1,0 +1,103 @@
+networks:
+  dmz_net:
+    driver: bridge
+    ipam: { config: [{ subnet: 10.50.10.0/24 }] }
+
+  internal_net:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 10.50.20.0/24 }] }
+
+  restricted_net:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 10.50.30.0/24 }] }
+
+  deep_net:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 10.50.40.0/24 }] }
+
+services:
+  kali:
+    build: ./kali
+    image: ligolo-lab/kali:level04
+    container_name: ligolo-lab04-kali
+    hostname: kali
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    networks:
+      dmz_net: { ipv4_address: 10.50.10.10 }
+    stdin_open: true
+    tty: true
+
+  # Compromised DMZ web server - the initial foothold for the capstone.
+  pivot-dmz:
+    build: ./pivot-dmz
+    image: ligolo-lab/pivot-dmz:level04
+    container_name: ligolo-lab04-pivot-dmz
+    hostname: dmz-web
+    networks:
+      dmz_net: { ipv4_address: 10.50.10.20 }
+      internal_net: { ipv4_address: 10.50.20.20 }
+    stdin_open: true
+    tty: true
+
+  # Database branch, hangs directly off the internal network (no separate pivot needed
+  # to reach it once the first tunnel is up).
+  db-server:
+    build: ./db-server
+    image: ligolo-lab/db-server:level04
+    container_name: ligolo-lab04-db-server
+    hostname: db-server
+    networks:
+      internal_net: { ipv4_address: 10.50.20.50 }
+    stdin_open: true
+    tty: true
+
+  # Second pivot: internal jump host, bridges internal_net into restricted_net.
+  pivot-internal:
+    build: ./pivot-internal
+    image: ligolo-lab/pivot-internal:level04
+    container_name: ligolo-lab04-pivot-internal
+    hostname: internal-pivot
+    networks:
+      internal_net: { ipv4_address: 10.50.20.30 }
+      restricted_net: { ipv4_address: 10.50.30.30 }
+    stdin_open: true
+    tty: true
+
+  # Management branch. Conceptually Windows in the course narrative (see
+  # course/16-capstone) - a Linux stand-in here so the lab runs without a Windows
+  # container host.
+  mgmt-server:
+    build: ./mgmt-server
+    image: ligolo-lab/mgmt-server:level04
+    container_name: ligolo-lab04-mgmt-server
+    hostname: mgmt-server
+    networks:
+      restricted_net: { ipv4_address: 10.50.30.40 }
+    stdin_open: true
+    tty: true
+
+  # Third pivot: bridges restricted_net into the deepest network.
+  pivot-restricted:
+    build: ./pivot-restricted
+    image: ligolo-lab/pivot-restricted:level04
+    container_name: ligolo-lab04-pivot-restricted
+    hostname: restricted-pivot
+    networks:
+      restricted_net: { ipv4_address: 10.50.30.50 }
+      deep_net: { ipv4_address: 10.50.40.50 }
+    stdin_open: true
+    tty: true
+
+  final-target:
+    build: ./final-target
+    image: ligolo-lab/final-target:level04
+    container_name: ligolo-lab04-final-target
+    hostname: final-target
+    networks:
+      deep_net: { ipv4_address: 10.50.40.100 }
+    stdin_open: true
+    tty: true

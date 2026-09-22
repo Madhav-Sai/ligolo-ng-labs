@@ -1,0 +1,49 @@
+# BROKEN ON PURPOSE. internal_net is capped to a 576-byte MTU (Docker's driver_opts
+# below) instead of the normal 1500. attack_net stays at the default. This models a
+# real scenario: a target network reachable through a VPN/tunnel/low-MTU WAN link
+# somewhere in the path, which routinely trips people up because SMALL requests work
+# fine and only LARGE transfers stall or hang.
+networks:
+  attack_net:
+    driver: bridge
+    ipam: { config: [{ subnet: 10.10.10.0/24 }] }
+  internal_net:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.driver.mtu: "576"
+    ipam: { config: [{ subnet: 172.16.10.0/24 }] }
+
+services:
+  kali:
+    build: ./kali
+    image: ligolo-lab/kali:tshoot03
+    container_name: ligolo-tshoot03-kali
+    hostname: kali
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    networks:
+      attack_net: { ipv4_address: 10.10.10.10 }
+    stdin_open: true
+    tty: true
+
+  pivot-01:
+    build: ./pivot-01
+    image: ligolo-lab/pivot01:tshoot03
+    container_name: ligolo-tshoot03-pivot01
+    hostname: pivot01
+    networks:
+      attack_net: { ipv4_address: 10.10.10.20 }
+      internal_net: { ipv4_address: 172.16.10.20 }
+    stdin_open: true
+    tty: true
+
+  internal-server-1:
+    build: ./internal-server-1
+    image: ligolo-lab/internal1:tshoot03
+    container_name: ligolo-tshoot03-internal1
+    hostname: internal-server-1
+    networks:
+      internal_net: { ipv4_address: 172.16.10.50 }
+    stdin_open: true
+    tty: true

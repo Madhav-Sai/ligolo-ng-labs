@@ -1,0 +1,97 @@
+networks:
+  attack_net:
+    driver: bridge
+    ipam: { config: [{ subnet: 10.10.10.0/24 }] }
+
+  internal_net:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 172.16.10.0/24 }] }
+
+  restricted_net:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 192.168.50.0/24 }] }
+
+  # The deepest network. Only pivot-03 and critical-server live here. Nothing else in
+  # the lab - not even pivot-02 - has a route into it.
+  critical_net:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 10.20.20.0/24 }] }
+
+services:
+  kali:
+    build: ./kali
+    image: ligolo-lab/kali:level03
+    container_name: ligolo-lab03-kali
+    hostname: kali
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    networks:
+      attack_net: { ipv4_address: 10.10.10.10 }
+    stdin_open: true
+    tty: true
+
+  pivot-01:
+    build: ./pivot-01
+    image: ligolo-lab/pivot01:level03
+    container_name: ligolo-lab03-pivot01
+    hostname: pivot01
+    networks:
+      attack_net: { ipv4_address: 10.10.10.20 }
+      internal_net: { ipv4_address: 172.16.10.20 }
+    stdin_open: true
+    tty: true
+
+  internal-server-1:
+    build: ./internal-server-1
+    image: ligolo-lab/internal1:level03
+    container_name: ligolo-lab03-internal1
+    hostname: internal-server-1
+    networks:
+      internal_net: { ipv4_address: 172.16.10.50 }
+    stdin_open: true
+    tty: true
+
+  pivot-02:
+    build: ./pivot-02
+    image: ligolo-lab/pivot02:level03
+    container_name: ligolo-lab03-pivot02
+    hostname: pivot02
+    networks:
+      internal_net: { ipv4_address: 172.16.10.30 }
+      restricted_net: { ipv4_address: 192.168.50.30 }
+    stdin_open: true
+    tty: true
+
+  internal-server-2:
+    build: ./internal-server-2
+    image: ligolo-lab/internal2:level03
+    container_name: ligolo-lab03-internal2
+    hostname: internal-server-2
+    networks:
+      restricted_net: { ipv4_address: 192.168.50.10 }
+    stdin_open: true
+    tty: true
+
+  pivot-03:
+    build: ./pivot-03
+    image: ligolo-lab/pivot03:level03
+    container_name: ligolo-lab03-pivot03
+    hostname: pivot03
+    networks:
+      restricted_net: { ipv4_address: 192.168.50.40 }
+      critical_net: { ipv4_address: 10.20.20.40 }
+    stdin_open: true
+    tty: true
+
+  critical-server:
+    build: ./critical-server
+    image: ligolo-lab/critical:level03
+    container_name: ligolo-lab03-critical
+    hostname: critical-server
+    networks:
+      critical_net: { ipv4_address: 10.20.20.100 }
+    stdin_open: true
+    tty: true

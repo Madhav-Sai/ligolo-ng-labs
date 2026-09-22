@@ -1,0 +1,58 @@
+networks:
+  attack_net:
+    driver: bridge
+    ipam: { config: [{ subnet: 10.10.10.0/24 }] }
+  internal_net:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 172.16.10.0/24 }] }
+
+services:
+  kali:
+    build: ./kali
+    image: ligolo-lab/kali:tshoot01
+    container_name: ligolo-tshoot01-kali
+    hostname: kali
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    networks:
+      attack_net: { ipv4_address: 10.10.10.10 }
+    stdin_open: true
+    tty: true
+
+  # NET_ADMIN added here (unlike the normal pivot-01) so the entrypoint can install
+  # the deliberately-broken iptables rule. This is the only thing that makes this
+  # container different from a normal pivot.
+  pivot-01:
+    build: ./pivot-01
+    image: ligolo-lab/pivot01:tshoot01
+    container_name: ligolo-tshoot01-pivot01
+    hostname: pivot01
+    cap_add: [NET_ADMIN]
+    networks:
+      attack_net: { ipv4_address: 10.10.10.20 }
+      internal_net: { ipv4_address: 172.16.10.20 }
+    stdin_open: true
+    tty: true
+
+  internal-server-1:
+    build: ./internal-server-1
+    image: ligolo-lab/internal1:tshoot01
+    container_name: ligolo-tshoot01-internal1
+    hostname: internal-server-1
+    networks:
+      internal_net: { ipv4_address: 172.16.10.50 }
+    stdin_open: true
+    tty: true
+
+  # Second pivot you'll be trying (and failing) to chain through pivot-01's listener.
+  pivot-02:
+    build: ./pivot-01
+    image: ligolo-lab/pivot02:tshoot01
+    container_name: ligolo-tshoot01-pivot02
+    hostname: pivot02
+    entrypoint: ["/bin/bash", "-c", "exec /bin/bash"]
+    networks:
+      internal_net: { ipv4_address: 172.16.10.30 }
+    stdin_open: true
+    tty: true

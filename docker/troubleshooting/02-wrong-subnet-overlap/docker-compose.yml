@@ -1,0 +1,47 @@
+# BROKEN ON PURPOSE. internal_net below reuses 10.10.10.0/24 - the SAME subnet as
+# attack_net - instead of 172.16.10.0/24. This is a genuine, easy-to-make mistake:
+# copy-pasting a compose file for a new lab scenario and forgetting to change one
+# subnet. Try `docker compose up -d` as-is first and read the actual error Docker
+# gives you before you look at SOLUTION.md.
+networks:
+  attack_net:
+    driver: bridge
+    ipam: { config: [{ subnet: 10.10.10.0/24 }] }
+  internal_net:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 10.10.10.0/24 }] }   # <-- bug: duplicates attack_net
+
+services:
+  kali:
+    build: ./kali
+    image: ligolo-lab/kali:tshoot02
+    container_name: ligolo-tshoot02-kali
+    hostname: kali
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    networks:
+      attack_net: { ipv4_address: 10.10.10.10 }
+    stdin_open: true
+    tty: true
+
+  pivot-01:
+    build: ./pivot-01
+    image: ligolo-lab/pivot01:tshoot02
+    container_name: ligolo-tshoot02-pivot01
+    hostname: pivot01
+    networks:
+      attack_net: { ipv4_address: 10.10.10.20 }
+      internal_net: { ipv4_address: 10.10.10.50 }
+    stdin_open: true
+    tty: true
+
+  internal-server-1:
+    build: ./internal-server-1
+    image: ligolo-lab/internal1:tshoot02
+    container_name: ligolo-tshoot02-internal1
+    hostname: internal-server-1
+    networks:
+      internal_net: { ipv4_address: 10.10.10.60 }
+    stdin_open: true
+    tty: true
